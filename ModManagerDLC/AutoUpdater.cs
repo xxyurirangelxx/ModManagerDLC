@@ -25,7 +25,11 @@ namespace DLCtoLML
 
     public class AutoUpdater
     {
-        // IMPORTANTE: Substitua com o seu nome de utilizador e nome do repositório no GitHub
+        // ===========================================================================================
+        // IMPORTANTE: PARA CORRIGIR O ERRO "404 NOT FOUND", SUBSTITUA "SEU_USUARIO" E "SEU_REPOSITORIO"
+        // PELO SEU NOME DE UTILIZADOR E NOME DO REPOSITÓRIO NO GITHUB.
+        // Exemplo: "https://api.github.com/repos/Yuri-FV/ModManagerDLC/releases/latest"
+        // ===========================================================================================
         private const string GitHubApiUrl = "https://api.github.com/repos/xxyurirangelxx/ModManagerDLC/releases/latest";
         private readonly Version _currentVersion;
 
@@ -136,3 +140,4 @@ del ""%~f0""
         }
     }
 }
+

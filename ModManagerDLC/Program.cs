@@ -1,10 +1,13 @@
-﻿using ModManagerDLC.Properties;
+﻿using Microsoft.Win32;
+using ModManagerDLC.Properties;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using System.Windows.Forms;
 
 namespace DLCtoLML
@@ -13,31 +16,54 @@ namespace DLCtoLML
     {
         private static readonly DlcInstaller _installer = new DlcInstaller();
         private static readonly LmlInstaller _lmlInstaller = new LmlInstaller();
-        private static readonly AutoUpdater _updater = new AutoUpdater(); // Novo AutoUpdater
+        private static readonly AutoUpdater _updater = new AutoUpdater();
         private static readonly Dictionary<string, string> _handlingFiles = new Dictionary<string, string>();
         private static string _gtaPath;
 
-        [STAThread] // Essencial para usar o seletor de ficheiros
+        [STAThread]
         static async Task Main(string[] args)
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
 
-            // A primeira coisa a fazer é verificar se existem atualizações para a própria ferramenta
+            // Regista o protocolo personalizado (ex: modmanagerdlc://) no Windows
+            ProtocolHandler.Register();
+
             await _updater.CheckForUpdatesAsync();
 
             LoadHandlingFiles();
             LoadGtaPath();
 
-            // Após as verificações iniciais, verifica o LML
             if (!string.IsNullOrEmpty(_gtaPath))
             {
                 await _lmlInstaller.CheckAndInstallLmlAsync(_gtaPath);
             }
 
-            // Permite instalar arrastando um link para cima do .exe
-            if (args.Length > 0)
+            // Verifica se a aplicação foi iniciada por um link personalizado
+            if (args.Length > 0 && args[0].StartsWith("modmanagerdlc://"))
             {
-                await ProcessUrl(args[0], args.Length > 1 ? args[1] : null);
+                Console.WriteLine("Link personalizado detectado. A processar...");
+                try
+                {
+                    var uri = new Uri(args[0]);
+                    var query = HttpUtility.ParseQueryString(uri.Query);
+
+                    string url = query.Get("link");
+                    string metadataUrl = query.Get("metadata");
+
+                    if (string.IsNullOrEmpty(url))
+                    {
+                        Console.WriteLine("ERRO: O parâmetro 'link' está em falta no URL personalizado.");
+                    }
+                    else
+                    {
+                        await ProcessUrl(url, metadataUrl);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"ERRO ao processar o link personalizado: {ex.Message}");
+                }
+
                 Console.WriteLine("\nPressione Enter para sair.");
                 Console.ReadLine();
                 return;
@@ -63,7 +89,6 @@ namespace DLCtoLML
                         break;
                     case "2":
                         SetGtaPath();
-                        // Após definir um novo caminho, verifica novamente o LML
                         if (!string.IsNullOrEmpty(_gtaPath))
                         {
                             await _lmlInstaller.CheckAndInstallLmlAsync(_gtaPath);
