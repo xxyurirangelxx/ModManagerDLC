@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36414.22 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModManagerDLC", "ModManagerDLC\ModManagerDLC.csproj", "{A55156EF-1B03-4F97-A75A-98C47435DF13}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A55156EF-1B03-4F97-A75A-98C47435DF13}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A55156EF-1B03-4F97-A75A-98C47435DF13}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A55156EF-1B03-4F97-A75A-98C47435DF13}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A55156EF-1B03-4F97-A75A-98C47435DF13}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3C172347-7614-4FE4-A8DD-C43111A88984}
+	EndGlobalSection
+EndGlobal
