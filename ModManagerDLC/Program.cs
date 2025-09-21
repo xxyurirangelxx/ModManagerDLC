@@ -13,6 +13,7 @@ namespace DLCtoLML
     {
         private static readonly DlcInstaller _installer = new DlcInstaller();
         private static readonly LmlInstaller _lmlInstaller = new LmlInstaller();
+        private static readonly AutoUpdater _updater = new AutoUpdater(); // Novo AutoUpdater
         private static readonly Dictionary<string, string> _handlingFiles = new Dictionary<string, string>();
         private static string _gtaPath;
 
@@ -21,10 +22,13 @@ namespace DLCtoLML
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
 
+            // A primeira coisa a fazer é verificar se existem atualizações para a própria ferramenta
+            await _updater.CheckForUpdatesAsync();
+
             LoadHandlingFiles();
             LoadGtaPath();
 
-            // CORREÇÃO: A verificação do LML foi movida para o início, para ser executada sempre.
+            // Após as verificações iniciais, verifica o LML
             if (!string.IsNullOrEmpty(_gtaPath))
             {
                 await _lmlInstaller.CheckAndInstallLmlAsync(_gtaPath);
@@ -33,7 +37,6 @@ namespace DLCtoLML
             // Permite instalar arrastando um link para cima do .exe
             if (args.Length > 0)
             {
-                // A verificação já foi feita, então apenas processamos a URL.
                 await ProcessUrl(args[0], args.Length > 1 ? args[1] : null);
                 Console.WriteLine("\nPressione Enter para sair.");
                 Console.ReadLine();
@@ -79,8 +82,6 @@ namespace DLCtoLML
         private static async Task HandleUrlInstallation()
         {
             if (!CheckGtaPath()) return;
-
-            // A verificação do LML já foi feita no início.
 
             Console.WriteLine("\n--- Instalar Mod pela URL ---");
             Console.Write("Cole o link direto para o ficheiro (.zip ou .rpf): ");
