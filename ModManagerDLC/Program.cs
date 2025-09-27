@@ -1,5 +1,4 @@
-﻿using Microsoft.Win32;
-using ModManagerDLC.Properties;
+﻿using ModManagerDLC.Properties;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -78,8 +77,9 @@ namespace DLCtoLML
                 Console.WriteLine($"Caminho do GTA V: {_gtaPath ?? "Não definido"}\n");
                 Console.WriteLine("Escolha uma opção:");
                 Console.WriteLine("1. Instalar Mod pela URL");
-                Console.WriteLine("2. Selecionar Caminho do GTA V");
-                Console.WriteLine("3. Sair");
+                Console.WriteLine("2. Instalar Mod Localmente");
+                Console.WriteLine("3. Selecionar Caminho do GTA V");
+                Console.WriteLine("4. Sair");
                 Console.Write("\nOpção: ");
 
                 switch (Console.ReadLine())
@@ -88,13 +88,16 @@ namespace DLCtoLML
                         await HandleUrlInstallation();
                         break;
                     case "2":
+                        await HandleLocalInstallation();
+                        break;
+                    case "3":
                         SetGtaPath();
                         if (!string.IsNullOrEmpty(_gtaPath))
                         {
                             await _lmlInstaller.CheckAndInstallLmlAsync(_gtaPath);
                         }
                         break;
-                    case "3":
+                    case "4":
                         return;
                     default:
                         Console.WriteLine("Opção inválida. Pressione Enter para continuar.");
@@ -103,6 +106,44 @@ namespace DLCtoLML
                 }
             }
         }
+
+        private static async Task HandleLocalInstallation()
+        {
+            if (!CheckGtaPath()) return;
+
+            string selectedFile = null;
+            var thread = new Thread(() =>
+            {
+                using (var ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Selecione o arquivo .zip ou .rpf do mod";
+                    ofd.Filter = "Arquivos de Mod (*.zip;*.rpf)|*.zip;*.rpf";
+                    ofd.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyComputer);
+
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        selectedFile = ofd.FileName;
+                    }
+                }
+            });
+
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            if (!string.IsNullOrEmpty(selectedFile))
+            {
+                await ProcessFile(selectedFile);
+            }
+            else
+            {
+                Console.WriteLine("\nNenhum ficheiro selecionado.");
+            }
+
+            Console.WriteLine("\nPressione Enter para voltar ao menu.");
+            Console.ReadLine();
+        }
+
 
         private static async Task HandleUrlInstallation()
         {
@@ -152,6 +193,30 @@ namespace DLCtoLML
             else
             {
                 Console.WriteLine("\nERRO: URL inválida. O link deve terminar em .zip ou .rpf.");
+            }
+        }
+
+        private static async Task ProcessFile(string filePath)
+        {
+            if (!CheckGtaPath()) return;
+
+            if (filePath.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunInstaller(async (progress) =>
+                {
+                    await _installer.InstallDlcFromFileAsync(_gtaPath, filePath, progress);
+                }, "A instalar .rpf...");
+            }
+            else if (filePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunInstaller(async (progress) =>
+                {
+                    await _installer.InstallFromVehicleFileAsync(_gtaPath, filePath, _handlingFiles, progress);
+                }, "A instalar .zip...");
+            }
+            else
+            {
+                Console.WriteLine("\nERRO: Ficheiro inválido. Apenas ficheiros .zip ou .rpf são suportados.");
             }
         }
 
@@ -253,4 +318,3 @@ namespace DLCtoLML
         }
     }
 }
-

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression; // Adicionado para extrair o .zip
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -8,6 +9,8 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization; // Requer referência a System.Web.Extensions
 
+// Coloque este ficheiro no seu novo projeto.
+// Namespace pode ser alterado para o do seu projeto.
 namespace DLCtoLML
 {
     // Classes auxiliares para deserializar a resposta JSON da API do GitHub
@@ -26,16 +29,19 @@ namespace DLCtoLML
     public class AutoUpdater
     {
         // ===========================================================================================
-        // IMPORTANTE: PARA CORRIGIR O ERRO "404 NOT FOUND", SUBSTITUA "SEU_USUARIO" E "SEU_REPOSITORIO"
-        // PELO SEU NOME DE UTILIZADOR E NOME DO REPOSITÓRIO NO GITHUB.
-        // Exemplo: "https://api.github.com/repos/Yuri-FV/ModManagerDLC/releases/latest"
+        // IMPORTANTE: PASSO 1 - CONFIGURE O SEU REPOSITÓRIO
+        // Substitua "SEU_USUARIO" e "SEU_REPOSITORIO" pelo seu nome de utilizador e
+        // nome do repositório no GitHub onde as releases serão publicadas.
+        // Exemplo: "https://api.github.com/repos/Yuri-FV/MeuOutroApp/releases/latest"
         // ===========================================================================================
         private const string GitHubApiUrl = "https://api.github.com/repos/xxyurirangelxx/ModManagerDLC/releases/latest";
         private readonly Version _currentVersion;
+        private readonly string _appName;
 
         public AutoUpdater()
         {
             _currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+            _appName = Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName);
         }
 
         public async Task CheckForUpdatesAsync()
@@ -48,13 +54,12 @@ namespace DLCtoLML
                 using (var client = new HttpClient())
                 {
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
-                    client.DefaultRequestHeaders.Add("User-Agent", "ModManagerDLC-Updater");
+                    client.DefaultRequestHeaders.Add("User-Agent", "CSharp-AutoUpdater");
 
                     var responseJson = await client.GetStringAsync(GitHubApiUrl);
                     var serializer = new JavaScriptSerializer();
                     var latestRelease = serializer.Deserialize<GitHubRelease>(responseJson);
 
-                    // Remove o 'v' do início da tag_name (ex: "v1.1.0" -> "1.1.0")
                     var latestVersionString = latestRelease.tag_name.StartsWith("v") ? latestRelease.tag_name.Substring(1) : latestRelease.tag_name;
                     var latestVersion = new Version(latestVersionString);
 
@@ -68,7 +73,7 @@ namespace DLCtoLML
                         var input = Console.ReadLine();
                         if (input?.ToLower() == "s")
                         {
-                            await PerformUpdate(latestRelease);
+                            await PerformUpdateFromZip(latestRelease);
                         }
                         else
                         {
@@ -91,43 +96,60 @@ namespace DLCtoLML
             await Task.Delay(1500); // Pausa para o utilizador ler
         }
 
-        private async Task PerformUpdate(GitHubRelease release)
+        private async Task PerformUpdateFromZip(GitHubRelease release)
         {
-            var asset = release.assets.FirstOrDefault(a => a.name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            // Procura por um ficheiro .zip na release em vez de .exe
+            var asset = release.assets.FirstOrDefault(a => a.name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
             if (asset == null)
             {
-                Console.WriteLine("ERRO: Não foi encontrado um ficheiro .exe na release mais recente do GitHub.");
+                Console.WriteLine("ERRO: Não foi encontrado um ficheiro .zip na release mais recente do GitHub.");
                 return;
             }
 
             string downloadUrl = asset.browser_download_url;
             string currentExePath = Process.GetCurrentProcess().MainModule.FileName;
-            string newExePath = Path.Combine(Path.GetDirectoryName(currentExePath), "ModManagerDLC.new.exe");
-            string batchFilePath = Path.Combine(Path.GetDirectoryName(currentExePath), "update.bat");
+            string currentDirectory = Path.GetDirectoryName(currentExePath);
+
+            string tempZipPath = Path.Combine(currentDirectory, "update.zip");
+            string tempExtractPath = Path.Combine(currentDirectory, "update_temp");
+            string batchFilePath = Path.Combine(currentDirectory, "update.bat");
 
             try
             {
                 Console.WriteLine($"A baixar {asset.name}...");
                 using (var client = new WebClient())
                 {
-                    await client.DownloadFileTaskAsync(new Uri(downloadUrl), newExePath);
+                    await client.DownloadFileTaskAsync(new Uri(downloadUrl), tempZipPath);
                 }
                 Console.WriteLine("Download concluído.");
 
+                Console.WriteLine("A extrair atualização...");
+                if (Directory.Exists(tempExtractPath)) Directory.Delete(tempExtractPath, true);
+                ZipFile.ExtractToDirectory(tempZipPath, tempExtractPath);
+
+                // VERSÃO CORRIGIDA DO SCRIPT .BAT
+                // Utiliza uma abordagem mais segura de copiar primeiro e depois apagar.
                 string batchCommands = $@"
 @echo off
 echo A aguardar que a aplicação feche...
-timeout /t 2 /nobreak > nul
-echo A substituir a versão antiga...
-del ""{Path.GetFileName(currentExePath)}""
-rename ""{Path.GetFileName(newExePath)}"" ""{Path.GetFileName(currentExePath)}""
+timeout /t 3 /nobreak > nul
+
+echo A substituir os ficheiros antigos...
+robocopy ""{tempExtractPath}"" ""."" /E /IS /R:0 /W:0 > nul
+
+echo A limpar a pasta de atualização...
+rmdir /S /Q ""{tempExtractPath}""
+
+echo A limpar ficheiros temporários...
+del ""{Path.GetFileName(tempZipPath)}""
+
 echo Atualização concluída! A reiniciar...
-start """" ""{Path.GetFileName(currentExePath)}""
+start """" ""{_appName}""
+
 del ""%~f0""
 ";
                 File.WriteAllText(batchFilePath, batchCommands);
 
-                // Inicia o script .bat e fecha a aplicação atual
                 Process.Start(new ProcessStartInfo(batchFilePath) { CreateNoWindow = true, UseShellExecute = false });
                 Environment.Exit(0);
             }

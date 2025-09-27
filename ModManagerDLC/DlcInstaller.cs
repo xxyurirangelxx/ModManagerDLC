@@ -59,6 +59,61 @@ namespace DLCtoLML
             }
         }
 
+        public async Task InstallDlcFromFileAsync(string gtaPath, string rpfPath, IProgress<int> progress)
+        {
+            if (!File.Exists(rpfPath))
+                throw new FileNotFoundException("O arquivo RPF não foi encontrado.", rpfPath);
+
+            string dlcName = Path.GetFileNameWithoutExtension(rpfPath);
+            string packageName = Sanitize(dlcName);
+            string packageRoot = Path.Combine(gtaPath, "lml", packageName);
+
+            Directory.CreateDirectory(packageRoot);
+            await Task.Run(() => File.Copy(rpfPath, Path.Combine(packageRoot, "dlc.rpf"), true));
+
+            await CreateLmlStructureForDlc(gtaPath, packageName, packageRoot, progress, 50);
+        }
+
+        public async Task InstallFromVehicleFileAsync(string gtaPath, string zipPath, Dictionary<string, string> handlingFiles, IProgress<int> progress)
+        {
+            if (!File.Exists(zipPath))
+                throw new FileNotFoundException("O arquivo ZIP não foi encontrado.", zipPath);
+
+            string tempExtractPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+
+            try
+            {
+                progress.Report(10);
+                Directory.CreateDirectory(tempExtractPath);
+                ZipFile.ExtractToDirectory(zipPath, tempExtractPath);
+                progress.Report(25);
+
+                var vehicleFolder = FindVehicleFolder(tempExtractPath);
+                if (vehicleFolder == null)
+                    throw new Exception("Não foi possível identificar um mod de veículo válido no arquivo .zip.");
+
+                string configPath = Path.Combine(tempExtractPath, "dlc_config.ini");
+                if (!File.Exists(configPath))
+                    configPath = Path.Combine(vehicleFolder, "dlc_config.ini");
+
+                DlcConfig config = File.Exists(configPath) ? IniParser.Parse(configPath) : null;
+
+                string spawnName = config?.SpawnName ?? new DirectoryInfo(vehicleFolder).Name;
+                string handlingContent = handlingFiles.First().Value;
+
+                if (config != null && !string.IsNullOrEmpty(config.HandlingPreset) && handlingFiles.ContainsKey(config.HandlingPreset))
+                {
+                    handlingContent = handlingFiles[config.HandlingPreset];
+                }
+
+                await InstallFromFilesAsync(gtaPath, vehicleFolder, spawnName, handlingContent, progress, config);
+            }
+            finally
+            {
+                if (Directory.Exists(tempExtractPath)) Directory.Delete(tempExtractPath, true);
+            }
+        }
+
         public async Task InstallDlcFromUrlAsync(string gtaPath, string dlcUrl, string metadataUrl, IProgress<int> progress)
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
@@ -185,8 +240,6 @@ namespace DLCtoLML
             }
         }
 
-        // ... código anterior sem alterações ...
-
 
         private async Task InstallElsFromMetadata(string gtaPath, DlcConfig config, string metadataExtractPath)
         {
@@ -232,8 +285,6 @@ namespace DLCtoLML
                 }
             }
         }
-
-        // ... restante do código sem alterações ...
 
         private string FindVehicleFolder(string rootPath)
         {
